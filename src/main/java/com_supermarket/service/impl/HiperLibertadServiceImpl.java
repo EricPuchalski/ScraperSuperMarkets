@@ -2,7 +2,6 @@ package com_supermarket.service.impl;
 
 import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.mapper.ProductMapper;
-import com_supermarket.model.PriceHistory;
 import com_supermarket.model.Product;
 import com_supermarket.repository.HiperLibertadRepository;
 import com_supermarket.service.HiperLibertadService;
@@ -14,7 +13,6 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -25,7 +23,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 @Service
-public class HiperLibertadServiceImpl extends BaseSupermarketService implements HiperLibertadService {
+public class HiperLibertadServiceImpl extends BaseScraperService implements HiperLibertadService {
 
     public HiperLibertadServiceImpl(HiperLibertadRepository hiperLibertadRepository,
                                     ProductMapper productMapper) {
@@ -139,8 +137,7 @@ public class HiperLibertadServiceImpl extends BaseSupermarketService implements 
     }
 
     @Override
-    public Page<ProductResponseDto> findProducts(String name, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+    public Page<ProductResponseDto> findProducts(String name, Pageable pageable) {
         Page<Product> productPage = productRepository.findByPageAndNameContainingIgnoreCase(
                 PAGE_NAME, name, pageable);
         return new PageImpl<>(
@@ -168,9 +165,12 @@ public class HiperLibertadServiceImpl extends BaseSupermarketService implements 
     @Override
     public Page<ProductResponseDto> findProductsWithPriceDecreaseLastWeek(Pageable pageable) {
         LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
-        Page<Product> activeProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);
 
-        List<Product> productsWithDecrease = activeProducts.getContent().stream()
+        // 1. Primero obtener TODOS los productos activos
+        List<Product> allActiveProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME);
+
+        // 2. Filtrar los que tuvieron disminución
+        List<Product> productsWithDecrease = allActiveProducts.stream()
                 .filter(product -> hasPriceDecreasedInLastWeek(product, sevenDaysAgo))
                 .collect(Collectors.toList());
 

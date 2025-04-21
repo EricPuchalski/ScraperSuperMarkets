@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +22,8 @@ public class AdminController {
     private final CaliforniaService californiaService;
     private final HiperLibertadService hiperLibertadService;
 
-    public AdminController(CaliforniaService californiaService, HiperLibertadService hiperLibertadService) {
+    public AdminController(CaliforniaService californiaService,
+                           HiperLibertadService hiperLibertadService) {
         this.californiaService = californiaService;
         this.hiperLibertadService = hiperLibertadService;
     }
@@ -31,23 +33,22 @@ public class AdminController {
         californiaService.scrapeProducts();
         hiperLibertadService.scrapeProducts();
 
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Todos los productos han sido actualizados correctamente");
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(Map.of(
+                "message", "Todos los productos han sido actualizados correctamente",
+                "california", "ok",
+                "hiperlibertad", "ok"
+        ));
     }
 
     @GetMapping("/products")
     public ResponseEntity<Page<ProductResponseDto>> findAllProductsPageable(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "21") int size) {
+            @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        // Obtenemos todos los productos de ambas tiendas
         List<ProductResponseDto> allProducts = new ArrayList<>();
         allProducts.addAll(californiaService.findAll());
         allProducts.addAll(hiperLibertadService.findAll());
 
-        // Creamos una paginación manual de la lista unificada
-        return createPageResponse(allProducts, page, size);
+        return paginateList(allProducts, pageable);
     }
 
     @GetMapping("/products/all")
@@ -62,74 +63,72 @@ public class AdminController {
     @GetMapping("/products/search")
     public ResponseEntity<Page<ProductResponseDto>> findProducts(
             @RequestParam String name,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "21") int size) {
+            @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        // Buscamos productos en ambas tiendas
-        Page<ProductResponseDto> californiaProducts = californiaService.findProducts(name, page, size);
-        Page<ProductResponseDto> hiperLibertadProducts = hiperLibertadService.findProducts(name, page, size);
+        List<ProductResponseDto> results = new ArrayList<>();
+        results.addAll(californiaService.findProducts(name, Pageable.unpaged()).getContent());
+        results.addAll(hiperLibertadService.findProducts(name, Pageable.unpaged()).getContent());
 
-        // Unificamos los resultados
-        List<ProductResponseDto> combinedResults = new ArrayList<>();
-        combinedResults.addAll(californiaProducts.getContent());
-        combinedResults.addAll(hiperLibertadProducts.getContent());
-
-        // Si no hay resultados, devolvemos 404
-        if (combinedResults.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        // Paginamos la lista unificada
-        return createPageResponse(combinedResults, page, size);
+        return results.isEmpty() ?
+                ResponseEntity.notFound().build() :
+                paginateList(results, pageable);
     }
 
     @GetMapping("/products/count")
     public ResponseEntity<Map<String, Long>> getProductsCount() {
-        Map<String, Long> counts = new HashMap<>();
+        long californiaCount = californiaService.findAll().size();
+        long hiperLibertadCount = hiperLibertadService.findAll().size();
 
-        List<ProductResponseDto> californiaProducts = californiaService.findAll();
-        List<ProductResponseDto> hiperLibertadProducts = hiperLibertadService.findAll();
-
-        counts.put("california", (long) californiaProducts.size());
-        counts.put("hiperlibertad", (long) hiperLibertadProducts.size());
-        counts.put("total", (long) (californiaProducts.size() + hiperLibertadProducts.size()));
-
-        return ResponseEntity.ok(counts);
+        return ResponseEntity.ok(Map.of(
+                "california", californiaCount,
+                "hiperlibertad", hiperLibertadCount,
+                "total", californiaCount + hiperLibertadCount
+        ));
     }
 
-    // Método auxiliar para crear una respuesta paginada a partir de una lista
-    private ResponseEntity<Page<ProductResponseDto>> createPageResponse(List<ProductResponseDto> allProducts, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
+    @GetMapping("/products/price-decrease-last-week")
+    public ResponseEntity<Page<ProductResponseDto>> findProductsWithPriceDecreaseLastWeek(
+            @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), allProducts.size());
+        // Obtener todos los productos con descuento de California (paginados)
+        Page<ProductResponseDto> californiaProducts = californiaService
+                .findProductsWithPriceDecreaseLastWeek(pageable);
 
-        List<ProductResponseDto> pageContent;
-        if (start <= end) {
-            pageContent = allProducts.subList(start, end);
-        } else {
-            pageContent = new ArrayList<>();
-        }
+        // Obtener todos los productos con descuento de HiperLibertad (paginados)
+        Page<ProductResponseDto> hiperLibertadProducts = hiperLibertadService
+                .findProductsWithPriceDecreaseLastWeek(pageable);
 
-        Page<ProductResponseDto> productPage = new PageImpl<>(
-                pageContent,
+        // Combinar los contenidos
+        List<ProductResponseDto> combinedContent = new ArrayList<>();
+        combinedContent.addAll(californiaProducts.getContent());
+        combinedContent.addAll(hiperLibertadProducts.getContent());
+
+        // Calcular el total combinado
+        long totalElements = californiaProducts.getTotalElements() +
+                hiperLibertadProducts.getTotalElements();
+
+        // Crear la página de respuesta
+        Page<ProductResponseDto> resultPage = new PageImpl<>(
+                combinedContent,
                 pageable,
-                allProducts.size()
+                totalElements
         );
 
-        return ResponseEntity.ok(productPage);
+        return ResponseEntity.ok(resultPage);
     }
 
-    // VER LOS PRODUCTOS QUE BASJARON DE PRECIO EN LOS ULTIMOS 7 DIAS
-//
-//    @GetMapping("/products/price-decrease-last-week")
-//    public ResponseEntity<Page<ProductResponseDto>> findProductsWithPriceDecreaseLastWeek(@PageableDefault(page = 0, size = 21) Pageable pageable) {
-//        // Obtenemos todos los productos de ambas tiendas
-//        List<ProductResponseDto> allProducts = new ArrayList<>();
-//        allProducts.addAll(californiaService.findProductsWithPriceDecreaseLastWeek();
-//        allProducts.addAll(hiperLibertadService.findProductsWithPriceDecreaseLastWeek(PageRequest.of(page, size)).getContent());
-//
-//
-//        return createPageResponse(allProducts, page, d);
-//    }
+    private ResponseEntity<Page<ProductResponseDto>> paginateList(
+            List<ProductResponseDto> items, Pageable pageable) {
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), items.size());
+
+        List<ProductResponseDto> pageContent = items.subList(start, end);
+
+        return ResponseEntity.ok(new PageImpl<>(
+                pageContent,
+                pageable,
+                items.size()
+        ));
+    }
 }

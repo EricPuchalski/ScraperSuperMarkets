@@ -13,7 +13,7 @@ public interface ScraperService {
 
     List<ProductResponseDto> findAll();
 
-    Page<ProductResponseDto> findProducts(String name, int page, int size) ;
+    Page<ProductResponseDto> findProducts(String name, Pageable pageable) ;
 
     Page<ProductResponseDto> findAll(Pageable pageable);
 

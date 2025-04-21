@@ -15,15 +15,15 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 
-public abstract class BaseSupermarketService {
+public abstract class BaseScraperService {
     protected final Logger logger;
     protected final ScraperRepository productRepository;
     protected final ProductMapper productMapper;
     protected final String PAGE_NAME;
 
-    public BaseSupermarketService(ScraperRepository productRepository,
-                                  ProductMapper productMapper,
-                                  String pageName) {
+    public BaseScraperService(ScraperRepository productRepository,
+                              ProductMapper productMapper,
+                              String pageName) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
         this.PAGE_NAME = pageName;
@@ -94,20 +94,29 @@ public abstract class BaseSupermarketService {
                 .sorted(Comparator.comparing(PriceHistory::getDate).reversed())
                 .collect(Collectors.toList());
 
-        Optional<PriceHistory> recentPrice = sortedHistory.stream()
+        // Precio más reciente dentro de la semana
+        Optional<PriceHistory> currentPrice = sortedHistory.stream()
                 .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
                 .findFirst();
 
-        if (!recentPrice.isPresent()) {
+        if (!currentPrice.isPresent()) {
             return false;
         }
 
-        Optional<PriceHistory> previousPrice = sortedHistory.stream()
+        // Buscar el precio de referencia (el más reciente ANTES de la semana)
+        Optional<PriceHistory> referencePrice = sortedHistory.stream()
                 .filter(ph -> ph.getDate().isBefore(sevenDaysAgo))
                 .findFirst();
 
-        return previousPrice.isPresent() &&
-                recentPrice.get().getPrice() < previousPrice.get().getPrice();
+        // Si no hay precio de referencia, no podemos comparar
+        if (!referencePrice.isPresent()) {
+            return false;
+        }
+
+        // Verificar si hubo ALGÚN descuento durante la semana
+        return sortedHistory.stream()
+                .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
+                .anyMatch(ph -> ph.getPrice() < referencePrice.get().getPrice());
     }
 
     // Métodos abstractos (implementación obligatoria)
