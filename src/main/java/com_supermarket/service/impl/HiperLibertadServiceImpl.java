@@ -1,6 +1,5 @@
 package com_supermarket.service.impl;
 
-
 import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.mapper.ProductMapper;
 import com_supermarket.model.PriceHistory;
@@ -21,59 +20,92 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @Service
-public class HiperLibertadServiceImpl implements HiperLibertadService {
-    private static final Logger logger = Logger.getLogger(HiperLibertadServiceImpl.class.getName());
-    private static final String PAGE_NAME = "HiperLibertad";
+public class HiperLibertadServiceImpl extends BaseSupermarketService implements HiperLibertadService {
 
-    private final HiperLibertadRepository hiperLibertadRepository;
-    private final ProductMapper productMapper;
-
-    public HiperLibertadServiceImpl(HiperLibertadRepository hiperLibertadRepository, ProductMapper productMapper) {
-        this.hiperLibertadRepository = hiperLibertadRepository;
-        this.productMapper = productMapper;
+    public HiperLibertadServiceImpl(HiperLibertadRepository hiperLibertadRepository,
+                                    ProductMapper productMapper) {
+        super(hiperLibertadRepository, productMapper, "HiperLibertad");
     }
 
     @Override
-    public void updateProducts() {
+    public void scrapeProducts() {
         ChromeOptions options = ChromeUtils.getChromeOptions();
-
         WebDriver driver = new ChromeDriver(options);
-
-        List<String> categories = HiperLibertadUtils.getAllCategoryUrls();
+        Set<String> foundProductUrls = new HashSet<>();
 
         try {
-            for (String categoryUrl : categories) {
-                logger.info("Scrapeando categoria: " + categoryUrl);
-                try {
-                    driver.get(categoryUrl);
-                    loadAllProductsByScrolling(driver);
-
-                    List<WebElement> productElements = driver.findElements(By.cssSelector(".vtex-search-result-3-x-galleryItem"));
-                    for (WebElement productElement : productElements) {
-                        processProductElement(productElement);
-                    }
-                } catch (Exception e) {
-                    logger.log(Level.SEVERE, "Error en URL " + categoryUrl, e);
-                }
-            }
+            loadAllProducts(driver, foundProductUrls);
+            updateProductAvailability(foundProductUrls);
         } finally {
             driver.quit();
         }
-
     }
 
-    private void loadAllProductsByScrolling(WebDriver driver) {
+    @Override
+    protected void loadAllProducts(WebDriver driver, Set<String> foundProductUrls) {
+        List<String> categories = HiperLibertadUtils.getAllCategoryUrls();
+
+        for (String categoryUrl : categories) {
+            logger.info("Scrapeando categoria: " + categoryUrl);
+            try {
+                driver.get(categoryUrl);
+                scrollToLoadAllProducts(driver);
+
+                List<WebElement> productElements = driver.findElements(
+                        By.cssSelector(".vtex-search-result-3-x-galleryItem"));
+
+                for (WebElement productElement : productElements) {
+                    String productUrl = processProductElement(productElement);
+                    if (productUrl != null) {
+                        foundProductUrls.add(productUrl);
+                    }
+                }
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Error en URL " + categoryUrl, e);
+            }
+        }
+    }
+
+    @Override
+    protected String processProductElement(WebElement productElement) {
+        try {
+            String title = productElement.findElement(
+                    By.cssSelector(".vtex-product-summary-2-x-productBrand")).getText();
+            String productUrl = productElement.findElement(
+                    By.cssSelector(".vtex-product-summary-2-x-clearLink")).getAttribute("href");
+            String imageUrl = productElement.findElement(
+                    By.cssSelector(".vtex-product-summary-2-x-imageNormal")).getAttribute("src");
+
+            List<WebElement> priceSpans = productElement.findElements(
+                    By.cssSelector(".vtex-product-price-1-x-currencyContainer span"));
+            String priceText = priceSpans.get(2).getText() + priceSpans.get(4).getText();
+            double price = Double.parseDouble(priceText.replaceAll("[^\\d]", ""));
+
+            Optional<Product> existingProduct = productRepository.findByProductUrl(productUrl);
+
+            if (existingProduct.isPresent()) {
+                updateExistingProduct(existingProduct.get(), title, imageUrl, price);
+            } else {
+                insertNewProduct(title, imageUrl, productUrl, price);
+            }
+
+            return productUrl;
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Error procesando producto: " + e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private void scrollToLoadAllProducts(WebDriver driver) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-        final int[] lastProductCount = {0}; // Array para simular mutabilidad
-        final int[] currentProductCount = {driver.findElements(By.cssSelector(".vtex-search-result-3-x-galleryItem")).size()};
+        final int[] lastProductCount = {0};
+        final int[] currentProductCount = {driver.findElements(
+                By.cssSelector(".vtex-search-result-3-x-galleryItem")).size()};
         int unchangedCycles = 0;
         final int MAX_UNCHANGED_CYCLES = 3;
 
@@ -82,11 +114,13 @@ public class HiperLibertadServiceImpl implements HiperLibertadService {
             js.executeScript("window.scrollTo(0, document.body.scrollHeight)");
 
             new WebDriverWait(driver, Duration.ofSeconds(5)).until(d -> {
-                int newCount = driver.findElements(By.cssSelector(".vtex-search-result-3-x-galleryItem")).size();
+                int newCount = driver.findElements(
+                        By.cssSelector(".vtex-search-result-3-x-galleryItem")).size();
                 return newCount > lastProductCount[0] || newCount == currentProductCount[0];
             });
 
-            currentProductCount[0] = driver.findElements(By.cssSelector(".vtex-search-result-3-x-galleryItem")).size();
+            currentProductCount[0] = driver.findElements(
+                    By.cssSelector(".vtex-search-result-3-x-galleryItem")).size();
 
             if (currentProductCount[0] == lastProductCount[0]) {
                 unchangedCycles++;
@@ -96,69 +130,10 @@ public class HiperLibertadServiceImpl implements HiperLibertadService {
         }
     }
 
-    private void processProductElement(WebElement productElement) {
-        try {
-            String title = productElement.findElement(By.cssSelector(".vtex-product-summary-2-x-productBrand")).getText();
-            String productUrl = productElement.findElement(By.cssSelector(".vtex-product-summary-2-x-clearLink")).getAttribute("href");
-            String imageUrl = productElement.findElement(By.cssSelector(".vtex-product-summary-2-x-imageNormal")).getAttribute("src");
-
-            // Extracción de precio (Porque el entero está en el span 3 y el decimal en el 5)
-            List<WebElement> priceSpans = productElement.findElements(By.cssSelector(".vtex-product-price-1-x-currencyContainer span"));
-            String priceText = priceSpans.get(2).getText() + priceSpans.get(4).getText();
-            double price = Double.parseDouble(priceText.replaceAll("[^\\d]", ""));
-
-            Optional<Product> existingProduct = hiperLibertadRepository.findByProductUrl(productUrl);
-
-            if (existingProduct.isPresent()) {
-                updateExistingProduct(existingProduct.get(), title, imageUrl, price);
-            } else {
-                insertNewProduct(title, imageUrl, productUrl, price);
-            }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Error procesando producto: " + productElement + "error: "+  e.getMessage(), e);
-        }
-    }
-
-    private void updateExistingProduct(Product product, String title, String imageUrl, double price) {
-        product.setName(title);
-        product.setImageUrl(imageUrl);
-        product.setPage(PAGE_NAME);
-
-        List<PriceHistory> priceHistory = product.getPriceHistory();
-        if (priceHistory.isEmpty() || price != priceHistory.get(priceHistory.size() - 1).getPrice()) {
-            priceHistory.add(new PriceHistory(price, LocalDateTime.now()));
-        }
-
-        hiperLibertadRepository.save(product);
-    }
-
-    private void insertNewProduct(String title, String imageUrl, String productUrl, double price) {
-        Product newProduct = Product.builder()
-                .name(title)
-                .imageUrl(imageUrl)
-                .productUrl(productUrl)
-                .page(PAGE_NAME)
-                .build();
-        newProduct.getPriceHistory().add(new PriceHistory(price, LocalDateTime.now()));
-        hiperLibertadRepository.save(newProduct);
-    }
-
-    // Métodos auxiliares (similares a FullH4rd)
-    private List<ProductResponseDto> convertToDto(List<Product> productList) {
-        return productList.stream()
-                .map(productMapper::toDto)
-                .collect(Collectors.toList());
-    }
-
     @Override
     public List<ProductResponseDto> findProducts(String name) {
-        List<Product> products = new ArrayList<>();
-        hiperLibertadRepository.findAll().forEach(products::add); // Convertir Iterable a List
-
-        return products.stream()
-                .filter(product -> product.getName() != null &&
-                        product.getName().toLowerCase().contains(name.toLowerCase()))
-                .filter(product -> PAGE_NAME.equalsIgnoreCase(product.getPage()))
+        return productRepository.findByPageAndNameContainingIgnoreCase(PAGE_NAME, name).stream()
+                .filter(Product::isActive)
                 .map(productMapper::toDto)
                 .collect(Collectors.toList());
     }
@@ -166,39 +141,43 @@ public class HiperLibertadServiceImpl implements HiperLibertadService {
     @Override
     public Page<ProductResponseDto> findProducts(String name, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        List<Product> allProducts = new ArrayList<>();
-        hiperLibertadRepository.findAll().forEach(allProducts::add);
-
-        // Filtrado manual
-        List<Product> filteredProducts = allProducts.stream()
-                .filter(product -> product.getName() != null &&
-                        product.getName().toLowerCase().contains(name.toLowerCase()))
-                .filter(product -> PAGE_NAME.equalsIgnoreCase(product.getPage()))
-                .collect(Collectors.toList());
-
-        // Paginación manual
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), filteredProducts.size());
-        List<Product> pageContent = filteredProducts.subList(start, end);
-
+        Page<Product> productPage = productRepository.findByPageAndNameContainingIgnoreCase(
+                PAGE_NAME, name, pageable);
         return new PageImpl<>(
-                convertToDto(pageContent),
+                convertListToDto(productPage.getContent()),
                 pageable,
-                filteredProducts.size()
-        );
+                productPage.getTotalElements());
     }
 
     @Override
     public List<ProductResponseDto> findAll() {
-        return hiperLibertadRepository.findByPage(PAGE_NAME).stream()
+        return productRepository.findByPageAndActiveTrue(PAGE_NAME).stream()
                 .map(productMapper::toDto)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> findAll(int page, int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Product> productPage = hiperLibertadRepository.findByPage(PAGE_NAME, pageable);
-        return new PageImpl<>(convertToDto(productPage.getContent()), pageable, productPage.getTotalElements());
+    public Page<ProductResponseDto> findAll(Pageable pageable) {
+        Page<Product> productPage = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);
+        return new PageImpl<>(
+                convertListToDto(productPage.getContent()),
+                pageable,
+                productPage.getTotalElements());
     }
+
+    @Override
+    public Page<ProductResponseDto> findProductsWithPriceDecreaseLastWeek(Pageable pageable) {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        Page<Product> activeProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);
+
+        List<Product> productsWithDecrease = activeProducts.getContent().stream()
+                .filter(product -> hasPriceDecreasedInLastWeek(product, sevenDaysAgo))
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(
+                convertListToDto(productsWithDecrease),
+                pageable,
+                productsWithDecrease.size());
+    }
+
 }

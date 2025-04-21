@@ -3,6 +3,8 @@ package com_supermarket.controller;
 import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.service.HiperLibertadService;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,16 +21,14 @@ public class HiperLibertadController {
 
     @PostMapping()
     public ResponseEntity<List<ProductResponseDto>> updateProducts() {
-        hiperLibertadService.updateProducts();
+        hiperLibertadService.scrapeProducts();
         return ResponseEntity.ok().body(null);
     }
     //TODO UNA FUNCION PARA TRAER LA CANTIDAD DE PRODUCTOS TOTALES
 
     @GetMapping
-    public ResponseEntity<Page<ProductResponseDto>> findAllPageable(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "21") int size) {
-        Page<ProductResponseDto> products = hiperLibertadService.findAll(page, size);
+    public ResponseEntity<Page<ProductResponseDto>> findAllPageable(@PageableDefault(page = 0, size = 21)Pageable pageable) {
+        Page<ProductResponseDto> products = hiperLibertadService.findAll(pageable);
         return ResponseEntity.ok(products);
     }
 
@@ -50,6 +50,12 @@ public class HiperLibertadController {
             return ResponseEntity.notFound().build();
         }
 
+        return ResponseEntity.ok(products);
+    }
+
+    @GetMapping("/price-decrease-last-week")
+    public ResponseEntity<Page<ProductResponseDto>> findProductsWithPriceDecreaseLastWeek(@PageableDefault(page = 0, size = 21)Pageable pageable) {
+        Page<ProductResponseDto> products = hiperLibertadService.findProductsWithPriceDecreaseLastWeek(pageable);
         return ResponseEntity.ok(products);
     }
 }

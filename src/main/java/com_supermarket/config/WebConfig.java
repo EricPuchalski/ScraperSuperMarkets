@@ -15,7 +15,7 @@ public class WebConfig {
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**") // Permitir todas las rutas
                         .allowedOrigins(
-                                "http://localhost:5173"
+                                "http://localhost:4200"
                         ) // Agregar el dominio de ngrok
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Permitir métodos HTTP específicos
                         .allowedHeaders("*") // Permitir todos los encabezados

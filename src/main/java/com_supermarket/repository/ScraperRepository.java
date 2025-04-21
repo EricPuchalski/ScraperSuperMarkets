@@ -1,6 +1,5 @@
 package com_supermarket.repository;
 
-import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.model.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,7 +19,8 @@ public interface ScraperRepository extends CrudRepository<Product, String> {
     List<Product> findByPageAndNameContainingIgnoreCase(String page, String name);
     Page<Product> findByPageAndNameContainingIgnoreCase(String page, String name, Pageable pageable);
 
-    // Método para guardar todos los productos en batch
-    <S extends Product> Iterable<S> saveAll(Iterable<S> entities);
+    //Metodos para deshabilitar y habilitar
+    Page<Product> findByPageAndActiveTrue(String page, Pageable pageable);
+    List<Product> findByPageAndActiveTrue(String page);
 
 }
