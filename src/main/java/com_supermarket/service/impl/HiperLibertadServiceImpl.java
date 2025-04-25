@@ -15,6 +15,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -29,6 +30,12 @@ public class HiperLibertadServiceImpl extends BaseScraperService implements Hipe
     public HiperLibertadServiceImpl(HiperLibertadRepository hiperLibertadRepository,
                                     ProductMapper productMapper) {
         super(hiperLibertadRepository, productMapper, "HiperLibertad");
+    }
+
+    // Ejecuta a las 8 PM todos los días
+    @Scheduled(cron = "0 0 20 * * ?")
+    public void scheduleOtroSupermercadoScraping() {
+        this.scrapeProducts();
     }
 
     @Override

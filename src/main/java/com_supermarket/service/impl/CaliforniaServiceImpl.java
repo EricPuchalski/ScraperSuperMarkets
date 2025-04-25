@@ -13,6 +13,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -28,6 +29,12 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
     public CaliforniaServiceImpl(CaliforniaRepository californiaRepository,
                                  ProductMapper productMapper) {
         super(californiaRepository, productMapper, PAGE_NAME);
+    }
+
+    // Ejecuta a las 7 PM todos los días
+    @Scheduled(cron = "0 0 19 * * ?")
+    public void scheduleHiperLibertadScraping() {
+        this.scrapeProducts();
     }
 
     @Override
