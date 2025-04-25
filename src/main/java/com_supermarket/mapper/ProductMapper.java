@@ -26,6 +26,7 @@ public class ProductMapper {
                 .imageUrl(product.getImageUrl())
                 .productUrl(product.getProductUrl())
                 .page(product.getPage())
+                .active(product.isActive())
                 .priceHistory(product.getPriceHistory().stream().map(priceHistoryMapper::toDto).collect(Collectors.toList()))
                 .build();
 
@@ -60,6 +61,7 @@ public class ProductMapper {
                 .name(productDto.getName())
                 .imageUrl(productDto.getImageUrl())
                 .productUrl(productDto.getProductUrl())
+                .active(productDto.isActive())
                 .page(productDto.getPage())
                 .priceHistory(productDto.getPriceHistory().stream().map(priceHistoryMapper::toEntity).collect(Collectors.toList()))
                 .build();
@@ -74,6 +76,7 @@ public class ProductMapper {
         ProductPreviewResponseDto dto = ProductPreviewResponseDto.builder()
                 .id(product.getId())
                 .name(product.getName())
+                .active(product.isActive())
                 .imageUrl(product.getImageUrl())
                 .page(product.getPage())
                 .currentPrice(currentPrice)

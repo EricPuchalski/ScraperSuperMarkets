@@ -17,4 +17,5 @@ public class ProductPreviewResponseDto {
     private Double previousPrice;
     private String discountPercentage;
     private boolean hasPriceDropped;
+    private boolean active;
 }

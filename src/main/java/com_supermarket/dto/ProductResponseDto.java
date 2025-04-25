@@ -19,4 +19,5 @@ public class ProductResponseDto {
     private String page;
     private String discountPercentage;
     private boolean hasPriceDropped;
+    private boolean active;
 }

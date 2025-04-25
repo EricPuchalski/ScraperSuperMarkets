@@ -20,10 +20,8 @@ public class Product {
     @Id
     private String id;
     private String name;
-
     @Builder.Default
     private List<PriceHistory> priceHistory = new ArrayList<>(); // Inicializado con @Builder.Default
-
     private String imageUrl;
     private String productUrl;
     private String page;
