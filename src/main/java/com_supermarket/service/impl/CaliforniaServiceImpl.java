@@ -1,5 +1,6 @@
 package com_supermarket.service.impl;
 
+import com_supermarket.dto.ProductPreviewResponseDto;
 import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.mapper.ProductMapper;
 import com_supermarket.model.Product;
@@ -139,33 +140,33 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
     }
 
     @Override
-    public Page<ProductResponseDto> findProducts(String name, Pageable pageable) {
+    public Page<ProductPreviewResponseDto> findProducts(String name, Pageable pageable) {
         Page<Product> productPage = productRepository.findByPageAndNameContainingIgnoreCase(
                 PAGE_NAME, name, pageable);
         return new PageImpl<>(
-                convertListToDto(productPage.getContent()),
+                convertListToProductPreview(productPage.getContent()),
                 pageable,
                 productPage.getTotalElements());
     }
 
     @Override
-    public List<ProductResponseDto> findAll() {
+    public List<ProductPreviewResponseDto> findAll() {
         return productRepository.findByPageAndActiveTrue(PAGE_NAME).stream()
-                .map(productMapper::toDto)
+                .map(productMapper::toProductPreview)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Page<ProductResponseDto> findAll(Pageable pageable) {
+    public Page<ProductPreviewResponseDto> findAll(Pageable pageable) {
         Page<Product> productPage = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);
         return new PageImpl<>(
-                convertListToDto(productPage.getContent()),
+                convertListToProductPreview(productPage.getContent()),
                 pageable,
                 productPage.getTotalElements());
     }
 
     @Override
-    public Page<ProductResponseDto> findProductsWithPriceDecreaseLastWeek(Pageable pageable) {
+    public Page<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeekPageable(Pageable pageable) {
         LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
 
         // 1. Primero obtener TODOS los productos activos
@@ -177,8 +178,33 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
                 .collect(Collectors.toList());
 
         return new PageImpl<>(
-                convertListToDto(productsWithDecrease),
+                convertListToProductPreview(productsWithDecrease),
                 pageable,
                 productsWithDecrease.size());
+    }
+
+    @Override
+    public List<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeek() {
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+
+        // 1. Primero obtener TODOS los productos activos
+        List<Product> allActiveProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME);
+
+        // 2. Filtrar los que tuvieron disminución
+        List<Product> productsWithDecrease = allActiveProducts.stream()
+                .filter(product -> hasPriceDecreasedInLastWeek(product, sevenDaysAgo))
+                .collect(Collectors.toList());
+
+        return convertListToProductPreview(productsWithDecrease);
+    }
+
+    @Override
+    public ProductResponseDto findById(String id) {
+        Product findProduct =  productRepository.findById(id).orElse(null);
+        if (findProduct != null) {
+            return productMapper.toDto(findProduct);
+        } else {
+            return null;
+        }
     }
 }

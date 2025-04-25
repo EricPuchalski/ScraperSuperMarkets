@@ -30,18 +30,6 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
-		<!-- Spring AI -->
-		<dependency>
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-openai-spring-boot-starter</artifactId>
-			<version>0.8.1</version>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.ai</groupId>
-			<artifactId>spring-ai-pgvector-store-spring-boot-starter</artifactId>
-			<version>0.8.1</version>
-		</dependency>
-
 		<!-- Para procesamiento JSON -->
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>

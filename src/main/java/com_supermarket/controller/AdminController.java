@@ -1,11 +1,10 @@
 package com_supermarket.controller;
 
-import com_supermarket.dto.ProductResponseDto;
+import com_supermarket.dto.ProductPreviewResponseDto;
 import com_supermarket.service.CaliforniaService;
 import com_supermarket.service.HiperLibertadService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -41,10 +40,10 @@ public class AdminController {
     }
 
     @GetMapping("/products")
-    public ResponseEntity<Page<ProductResponseDto>> findAllProductsPageable(
+    public ResponseEntity<Page<ProductPreviewResponseDto>> findAllProductsPageable(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        List<ProductResponseDto> allProducts = new ArrayList<>();
+        List<ProductPreviewResponseDto> allProducts = new ArrayList<>();
         allProducts.addAll(californiaService.findAll());
         allProducts.addAll(hiperLibertadService.findAll());
 
@@ -52,8 +51,8 @@ public class AdminController {
     }
 
     @GetMapping("/products/all")
-    public ResponseEntity<List<ProductResponseDto>> findAllProducts() {
-        List<ProductResponseDto> allProducts = new ArrayList<>();
+    public ResponseEntity<List<ProductPreviewResponseDto>> findAllProducts() {
+        List<ProductPreviewResponseDto> allProducts = new ArrayList<>();
         allProducts.addAll(californiaService.findAll());
         allProducts.addAll(hiperLibertadService.findAll());
 
@@ -61,16 +60,16 @@ public class AdminController {
     }
 
     @GetMapping("/products/search")
-    public ResponseEntity<Page<ProductResponseDto>> findProducts(
+    public ResponseEntity<Page<ProductPreviewResponseDto>> findProducts(
             @RequestParam String name,
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        List<ProductResponseDto> results = new ArrayList<>();
+        List<ProductPreviewResponseDto> results = new ArrayList<>();
         results.addAll(californiaService.findProducts(name, Pageable.unpaged()).getContent());
         results.addAll(hiperLibertadService.findProducts(name, Pageable.unpaged()).getContent());
 
         return results.isEmpty() ?
-                ResponseEntity.notFound().build() :
+                ResponseEntity.noContent().build() :
                 paginateList(results, pageable);
     }
 
@@ -87,43 +86,32 @@ public class AdminController {
     }
 
     @GetMapping("/products/price-decrease-last-week")
-    public ResponseEntity<Page<ProductResponseDto>> findProductsWithPriceDecreaseLastWeek(
+    public ResponseEntity<Page<ProductPreviewResponseDto>> findProductsWithPriceDecreaseLastWeek(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        // Obtener todos los productos con descuento de California (paginados)
-        Page<ProductResponseDto> californiaProducts = californiaService
-                .findProductsWithPriceDecreaseLastWeek(pageable);
+        // Primero obtén todas las entidades (sin paginar)
+        List<ProductPreviewResponseDto> californiaProducts = californiaService
+                .findProductsWithPriceDecreaseLastWeek();
 
-        // Obtener todos los productos con descuento de HiperLibertad (paginados)
-        Page<ProductResponseDto> hiperLibertadProducts = hiperLibertadService
-                .findProductsWithPriceDecreaseLastWeek(pageable);
+        List<ProductPreviewResponseDto> hiperLibertadProducts = hiperLibertadService
+                .findProductsWithPriceDecreaseLastWeek();
 
-        // Combinar los contenidos
-        List<ProductResponseDto> combinedContent = new ArrayList<>();
-        combinedContent.addAll(californiaProducts.getContent());
-        combinedContent.addAll(hiperLibertadProducts.getContent());
+        // Combina las listas
+        List<ProductPreviewResponseDto> allProducts = new ArrayList<>();
+        allProducts.addAll(californiaProducts);
+        allProducts.addAll(hiperLibertadProducts);
 
-        // Calcular el total combinado
-        long totalElements = californiaProducts.getTotalElements() +
-                hiperLibertadProducts.getTotalElements();
-
-        // Crear la página de respuesta
-        Page<ProductResponseDto> resultPage = new PageImpl<>(
-                combinedContent,
-                pageable,
-                totalElements
-        );
-
-        return ResponseEntity.ok(resultPage);
+        // Aplica la paginación a la lista combinada
+        return paginateList(allProducts, pageable);
     }
 
-    private ResponseEntity<Page<ProductResponseDto>> paginateList(
-            List<ProductResponseDto> items, Pageable pageable) {
+    private ResponseEntity<Page<ProductPreviewResponseDto>> paginateList(
+            List<ProductPreviewResponseDto> items, Pageable pageable) {
 
         int start = (int) pageable.getOffset();
         int end = Math.min((start + pageable.getPageSize()), items.size());
 
-        List<ProductResponseDto> pageContent = items.subList(start, end);
+        List<ProductPreviewResponseDto> pageContent = items.subList(start, end);
 
         return ResponseEntity.ok(new PageImpl<>(
                 pageContent,
@@ -131,4 +119,6 @@ public class AdminController {
                 items.size()
         ));
     }
+
+
 }

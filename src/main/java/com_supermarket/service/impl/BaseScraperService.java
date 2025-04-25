@@ -1,5 +1,6 @@
 package com_supermarket.service.impl;
 
+import com_supermarket.dto.ProductPreviewResponseDto;
 import com_supermarket.dto.ProductResponseDto;
 import com_supermarket.mapper.ProductMapper;
 import com_supermarket.model.PriceHistory;
@@ -85,6 +86,12 @@ public abstract class BaseScraperService {
                 .collect(Collectors.toList());
     }
 
+    protected List<ProductPreviewResponseDto> convertListToProductPreview(List<Product> productList) {
+        return productList.stream()
+                .map(productMapper::toProductPreview)
+                .collect(Collectors.toList());
+    }
+
     protected boolean hasPriceDecreasedInLastWeek(Product product, LocalDateTime sevenDaysAgo) {
         if (product.getPriceHistory() == null || product.getPriceHistory().isEmpty()) {
             return false;
@@ -92,14 +99,14 @@ public abstract class BaseScraperService {
 
         List<PriceHistory> sortedHistory = product.getPriceHistory().stream()
                 .sorted(Comparator.comparing(PriceHistory::getDate).reversed())
-                .collect(Collectors.toList());
+                .toList();
 
         // Precio más reciente dentro de la semana
         Optional<PriceHistory> currentPrice = sortedHistory.stream()
                 .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
                 .findFirst();
 
-        if (!currentPrice.isPresent()) {
+        if (currentPrice.isEmpty()) {
             return false;
         }
 
@@ -109,14 +116,10 @@ public abstract class BaseScraperService {
                 .findFirst();
 
         // Si no hay precio de referencia, no podemos comparar
-        if (!referencePrice.isPresent()) {
-            return false;
-        }
-
-        // Verificar si hubo ALGÚN descuento durante la semana
-        return sortedHistory.stream()
+        return referencePrice.filter(priceHistory -> sortedHistory.stream()
                 .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
-                .anyMatch(ph -> ph.getPrice() < referencePrice.get().getPrice());
+                .anyMatch(ph -> ph.getPrice() < priceHistory.getPrice())).isPresent();
+
     }
 
     // Métodos abstractos (implementación obligatoria)

@@ -1,5 +1,6 @@
 package com_supermarket.service;
 
+import com_supermarket.dto.ProductPreviewResponseDto;
 import com_supermarket.dto.ProductResponseDto;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,11 +12,15 @@ public interface ScraperService {
 
     List<ProductResponseDto> findProducts(String name);
 
-    List<ProductResponseDto> findAll();
+    List<ProductPreviewResponseDto> findAll();
 
-    Page<ProductResponseDto> findProducts(String name, Pageable pageable) ;
+    Page<ProductPreviewResponseDto> findProducts(String name, Pageable pageable) ;
 
-    Page<ProductResponseDto> findAll(Pageable pageable);
+    Page<ProductPreviewResponseDto> findAll(Pageable pageable);
 
-    Page<ProductResponseDto> findProductsWithPriceDecreaseLastWeek(Pageable pageable);
+    Page<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeekPageable(Pageable pageable);
+
+    List<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeek();
+
+    ProductResponseDto findById(String id);
 }

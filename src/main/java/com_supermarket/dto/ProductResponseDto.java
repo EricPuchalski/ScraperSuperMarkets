@@ -17,4 +17,6 @@ public class ProductResponseDto {
     private String imageUrl;
     private String productUrl;
     private String page;
+    private String discountPercentage;
+    private boolean hasPriceDropped;
 }
