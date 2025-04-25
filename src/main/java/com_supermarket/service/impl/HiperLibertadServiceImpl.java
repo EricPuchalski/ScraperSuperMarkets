@@ -107,7 +107,7 @@ public class HiperLibertadServiceImpl extends BaseScraperService implements Hipe
             // Convertir a double
             double price = Double.parseDouble(cleanedPriceText);
 
-            logger.info("El precio del producto: " + title + " es: " + price);
+//            logger.info("El precio del producto: " + title + " es: " + price);
 
             Optional<Product> existingProduct = productRepository.findByProductUrl(productUrl);
 
