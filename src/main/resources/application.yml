@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: supermarkets
+  datasource:
+    url: jdbc:postgresql://localhost:5432/super_posadas
+    username: postgres
+    password: Elcuervo12
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+

@@ -8,6 +8,7 @@ import com_supermarket.repository.HiperLibertadRepository;
 import com_supermarket.service.HiperLibertadService;
 import com_supermarket.utils.ChromeUtils;
 import com_supermarket.utils.HiperLibertadUtils;
+import jakarta.transaction.Transactional;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -25,6 +26,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class HiperLibertadServiceImpl extends BaseScraperService implements HiperLibertadService {
 
     public HiperLibertadServiceImpl(HiperLibertadRepository hiperLibertadRepository,
@@ -189,45 +191,33 @@ public class HiperLibertadServiceImpl extends BaseScraperService implements Hipe
 
     @Override
     public Page<ProductPreviewResponseDto> findAll(Pageable pageable) {
-        Page<Product> productPage = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);
-        return new PageImpl<>(
-                convertListToProductPreview(productPage.getContent()),
-                pageable,
-                productPage.getTotalElements());
+        return productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable)
+                .map(productMapper::toProductPreview);
     }
 
     @Override
-    public Page<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeekPageable(Pageable pageable) {
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+    public Page<ProductPreviewResponseDto> findProductsWithPriceDecreasePageable(Pageable pageable) {
+        final double percentageThreshold = 5.0;
 
-        // 1. Primero obtener TODOS los productos activos
-        List<Product> allActiveProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME);
+        Page<Product> productsPage = productRepository.findProductsWithPriceDecrease(
+                PAGE_NAME,
+                percentageThreshold,
+                pageable
+        );
 
-        // 2. Filtrar los que tuvieron disminución
-        List<Product> productsWithDecrease = allActiveProducts.stream()
-                .filter(product -> hasPriceDecreasedInLastWeek(product, sevenDaysAgo))
-                .collect(Collectors.toList());
-
-        return new PageImpl<>(
-                convertListToProductPreview(productsWithDecrease),
-                pageable,
-                productsWithDecrease.size());
+        return productsPage.map(product -> {
+            ProductPreviewResponseDto dto = productMapper.toProductPreview(product);
+            // Como el repositorio ya filtró por descuento actual, podemos asegurar que hay descuento
+            Double current = product.getCurrentPrice();
+            Double previous = product.getPreviousPrice();
+            double discount = ((previous - current) / previous) * 100;
+            dto.setDiscountPercentage(String.valueOf((int) Math.round(discount)));
+            return dto;
+        });
     }
 
-    @Override
-    public List<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeek() {
-        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
 
-        // 1. Primero obtener TODOS los productos activos
-        List<Product> allActiveProducts = productRepository.findByPageAndActiveTrue(PAGE_NAME);
 
-        // 2. Filtrar los que tuvieron disminución
-        List<Product> productsWithDecrease = allActiveProducts.stream()
-                .filter(product -> hasPriceDecreasedInLastWeek(product, sevenDaysAgo))
-                .collect(Collectors.toList());
-
-        return convertListToProductPreview(productsWithDecrease);
-    }
 
     public Page<ProductResponseDto> findAllProducts(Pageable pageable) {
         Page<Product> productPage = productRepository.findByPageAndActiveTrue(PAGE_NAME, pageable);

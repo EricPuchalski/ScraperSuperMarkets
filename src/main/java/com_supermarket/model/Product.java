@@ -1,12 +1,8 @@
 package com_supermarket.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.*;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,108 +11,51 @@ import java.util.List;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "products")
+@Getter
+@Setter
+@Entity
+@Table(name = "products")
 public class Product {
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
     private String name;
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "product_id")
     @Builder.Default
-    private List<PriceHistory> priceHistory = new ArrayList<>(); // Inicializado con @Builder.Default
+    @JsonIgnore // ← Esto evita que Jackson cargue la relación
+    private List<PriceHistory> priceHistory = new ArrayList<>();
+    @Column(name = "image_url")
     private String imageUrl;
+    @Column(name = "product_url")
     private String productUrl;
     private String page;
     private LocalDateTime date;
     private boolean active;
+    @Column(name = "last_activation_date")
     private LocalDateTime lastActivationDate;
+    @Column(name = "last_deactivation_date")
     private LocalDateTime lastDeactivationDate;
 
-    // Constructor conveniente para uso común
-    public Product(String title, String imageUrl, String productUrl, String page) {
-        this.name = title;
-        this.imageUrl = imageUrl;
-        this.productUrl = productUrl;
-        this.page = page;
-        this.priceHistory = new ArrayList<>();
+    public Double getCurrentPrice() {
+        if (priceHistory.isEmpty()) return null;
+        return priceHistory.get(priceHistory.size() - 1).getPrice();
     }
 
-    // Getters y Setters
-    public String getId() {
-        return id;
+    public Double getPreviousPrice() {
+        if (priceHistory.size() < 2) return null;
+        return priceHistory.get(priceHistory.size() - 2).getPrice();
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+    public boolean hasPriceDropped(double percentageThreshold) {
+        Double current = getCurrentPrice();
+        Double previous = getPreviousPrice();
 
-    public String getName() {
-        return name;
-    }
+        if (current == null || previous == null || previous == 0) {
+            return false;
+        }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public List<PriceHistory> getPriceHistory() {
-        return priceHistory;
-    }
-
-    public void setPriceHistory(List<PriceHistory> priceHistory) {
-        this.priceHistory = priceHistory != null ? priceHistory : new ArrayList<>();
-    }
-
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
-    public String getPage() {
-        return page;
-    }
-
-    public void setPage(String page) {
-        this.page = page;
-    }
-
-    public LocalDateTime getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDateTime date) {
-        this.date = date;
-    }
-
-    public String getProductUrl() {
-        return productUrl;
-    }
-
-    public void setProductUrl(String productUrl) {
-        this.productUrl = productUrl;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public void setActive(boolean active) {
-        this.active = active;
-    }
-
-    public LocalDateTime getLastActivationDate() {
-        return lastActivationDate;
-    }
-
-    public void setLastActivationDate(LocalDateTime lastActivationDate) {
-        this.lastActivationDate = lastActivationDate;
-    }
-
-    public LocalDateTime getLastDeactivationDate() {
-        return lastDeactivationDate;
-    }
-
-    public void setLastDeactivationDate(LocalDateTime lastDeactivationDate) {
-        this.lastDeactivationDate = lastDeactivationDate;
+        double percentageDrop = ((previous - current) / previous) * 100;
+        return percentageDrop >= percentageThreshold;
     }
 }

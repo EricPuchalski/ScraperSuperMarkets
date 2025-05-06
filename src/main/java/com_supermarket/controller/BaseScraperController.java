@@ -18,39 +18,39 @@ public abstract class BaseScraperController<S extends ScraperService> {
         this.storeService = storeService;
     }
 
-    @PostMapping
+    @PostMapping("products")
     public ResponseEntity<Void> updateProducts() {
         storeService.scrapeProducts();
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping
+    @GetMapping("products")
     public ResponseEntity<Page<ProductPreviewResponseDto>> findAllPageable(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
         return ResponseEntity.ok(storeService.findAll(pageable));
     }
 
-    @GetMapping("/all")
+    @GetMapping("products/all")
     public ResponseEntity<List<ProductPreviewResponseDto>> findAll() {
         return ResponseEntity.ok(storeService.findAll());
     }
 
-    @GetMapping("/search")
+    @GetMapping("products/search")
     public ResponseEntity<Page<ProductPreviewResponseDto>> findProducts(
             @RequestParam String name,
-            @PageableDefault(page = 0, size = 21) Pageable pageable) {
+            @PageableDefault(page = 0, size = 21, sort = "currentPrice") Pageable pageable) {
 
         Page<ProductPreviewResponseDto> products = storeService.findProducts(name, pageable);
         return products.isEmpty() ? ResponseEntity.notFound().build() : ResponseEntity.ok(products);
     }
 
-    @GetMapping("/price-decrease-last-week")
+    @GetMapping("products/price-decrease")
     public ResponseEntity<Page<ProductPreviewResponseDto>> findProductsWithPriceDecreaseLastWeek(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
-        return ResponseEntity.ok(storeService.findProductsWithPriceDecreaseLastWeekPageable(pageable));
+        return ResponseEntity.ok(storeService.findProductsWithPriceDecreasePageable(pageable));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("products/{id}")
     public ResponseEntity<ProductResponseDto> findById(@PathVariable String id) {
         return ResponseEntity.ok(storeService.findById(id));
     }

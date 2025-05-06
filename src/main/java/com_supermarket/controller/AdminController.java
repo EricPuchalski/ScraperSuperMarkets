@@ -1,30 +1,42 @@
 package com_supermarket.controller;
 
 import com_supermarket.dto.ProductPreviewResponseDto;
+import com_supermarket.repository.ScraperRepository;
+import com_supermarket.service.AdminService;
 import com_supermarket.service.CaliforniaService;
 import com_supermarket.service.HiperLibertadService;
+import com_supermarket.service.impl.BaseScraperService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
     private final CaliforniaService californiaService;
     private final HiperLibertadService hiperLibertadService;
+    private final AdminService adminService;
 
     public AdminController(CaliforniaService californiaService,
-                           HiperLibertadService hiperLibertadService) {
+                           HiperLibertadService hiperLibertadService, AdminService adminService) {
         this.californiaService = californiaService;
         this.hiperLibertadService = hiperLibertadService;
+        this.adminService = adminService;
     }
 
     @PostMapping("/update-all")
@@ -43,11 +55,27 @@ public class AdminController {
     public ResponseEntity<Page<ProductPreviewResponseDto>> findAllProductsPageable(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        List<ProductPreviewResponseDto> allProducts = new ArrayList<>();
-        allProducts.addAll(californiaService.findAll());
-        allProducts.addAll(hiperLibertadService.findAll());
+        // Divide el tamaño de página para cada servicio
+        Pageable halfPageable = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize() / 2,
+                pageable.getSort()
+        );
 
-        return paginateList(allProducts, pageable);
+        Page<ProductPreviewResponseDto> californiaPage = californiaService.findAll(halfPageable);
+        Page<ProductPreviewResponseDto> hiperLibertadPage = hiperLibertadService.findAll(halfPageable);
+
+        // Combina resultados
+        List<ProductPreviewResponseDto> combinedContent = Stream.concat(
+                californiaPage.getContent().stream(),
+                hiperLibertadPage.getContent().stream()
+        ).collect(Collectors.toList());
+
+        return ResponseEntity.ok(new PageImpl<>(
+                combinedContent,
+                pageable,
+                californiaPage.getTotalElements() + hiperLibertadPage.getTotalElements()
+        ));
     }
 
     @GetMapping("/products/all")
@@ -85,25 +113,50 @@ public class AdminController {
         ));
     }
 
-    @GetMapping("/products/price-decrease-last-week")
+    @GetMapping("/products/price-decrease")
     public ResponseEntity<Page<ProductPreviewResponseDto>> findProductsWithPriceDecreaseLastWeek(
             @PageableDefault(page = 0, size = 21) Pageable pageable) {
 
-        // Primero obtén todas las entidades (sin paginar)
-        List<ProductPreviewResponseDto> californiaProducts = californiaService
-                .findProductsWithPriceDecreaseLastWeek();
+        // Ejecuta ambas consultas en paralelo con el pageable completo
+        CompletableFuture<Page<ProductPreviewResponseDto>> californiaFuture = CompletableFuture.supplyAsync(() ->
+                californiaService.findProductsWithPriceDecreasePageable(pageable)
+        );
 
-        List<ProductPreviewResponseDto> hiperLibertadProducts = hiperLibertadService
-                .findProductsWithPriceDecreaseLastWeek();
+        CompletableFuture<Page<ProductPreviewResponseDto>> hiperLibertadFuture = CompletableFuture.supplyAsync(() ->
+                hiperLibertadService.findProductsWithPriceDecreasePageable(pageable)
+        );
 
-        // Combina las listas
-        List<ProductPreviewResponseDto> allProducts = new ArrayList<>();
-        allProducts.addAll(californiaProducts);
-        allProducts.addAll(hiperLibertadProducts);
+        // Espera y combina los resultados
+        try {
+            Page<ProductPreviewResponseDto> californiaPage = californiaFuture.join();
+            Page<ProductPreviewResponseDto> hiperLibertadPage = hiperLibertadFuture.join();
 
-        // Aplica la paginación a la lista combinada
-        return paginateList(allProducts, pageable);
+            List<ProductPreviewResponseDto> allResults = new ArrayList<>();
+            allResults.addAll(californiaPage.getContent());
+            allResults.addAll(hiperLibertadPage.getContent());
+
+            // Ordena los resultados combinados según los criterios de paginación
+            allResults.sort(Comparator.comparing(ProductPreviewResponseDto::getId));
+
+            // Crea una nueva página con los resultados combinados
+            Page<ProductPreviewResponseDto> combinedPage = new PageImpl<>(
+                    allResults,
+                    pageable,
+                    californiaPage.getTotalElements() + hiperLibertadPage.getTotalElements()
+            );
+
+            return ResponseEntity.ok(combinedPage);
+        } catch (CompletionException e) {
+            // Maneja las excepciones de CompletableFuture
+            e.printStackTrace(); // Agrega esto para ver el stack trace en los logs
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            // Maneja cualquier otra excepción
+            e.printStackTrace(); // Agrega esto para ver el stack trace en los logs
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
+
 
     private ResponseEntity<Page<ProductPreviewResponseDto>> paginateList(
             List<ProductPreviewResponseDto> items, Pageable pageable) {
@@ -120,5 +173,9 @@ public class AdminController {
         ));
     }
 
+    @GetMapping("/pages")
+    public ResponseEntity<List<String>> getPages() {
+        return ResponseEntity.ok(adminService.findPages());
+    }
 
 }

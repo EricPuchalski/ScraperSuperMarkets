@@ -18,9 +18,7 @@ public interface ScraperService {
 
     Page<ProductPreviewResponseDto> findAll(Pageable pageable);
 
-    Page<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeekPageable(Pageable pageable);
-
-    List<ProductPreviewResponseDto> findProductsWithPriceDecreaseLastWeek();
+    Page<ProductPreviewResponseDto> findProductsWithPriceDecreasePageable(Pageable pageable);
 
     ProductResponseDto findById(String id);
 }

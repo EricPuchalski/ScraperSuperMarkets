@@ -31,7 +31,7 @@ public abstract class BaseScraperService {
         this.logger = Logger.getLogger(this.getClass().getName());
     }
 
-    // Métodos implementados (comunes)
+    // Métodos implementados
     protected void updateProductAvailability(Set<String> foundProductUrls) {
         List<Product> allProducts = productRepository.findByPage(PAGE_NAME);
 
@@ -79,7 +79,6 @@ public abstract class BaseScraperService {
         productRepository.save(newProduct);
     }
 
-    // En BaseSupermarketService.java
     protected List<ProductResponseDto> convertListToDto(List<Product> productList) {
         return productList.stream()
                 .map(productMapper::toDto)
@@ -90,36 +89,6 @@ public abstract class BaseScraperService {
         return productList.stream()
                 .map(productMapper::toProductPreview)
                 .collect(Collectors.toList());
-    }
-
-    protected boolean hasPriceDecreasedInLastWeek(Product product, LocalDateTime sevenDaysAgo) {
-        if (product.getPriceHistory() == null || product.getPriceHistory().isEmpty()) {
-            return false;
-        }
-
-        List<PriceHistory> sortedHistory = product.getPriceHistory().stream()
-                .sorted(Comparator.comparing(PriceHistory::getDate).reversed())
-                .toList();
-
-        // Precio más reciente dentro de la semana
-        Optional<PriceHistory> currentPrice = sortedHistory.stream()
-                .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
-                .findFirst();
-
-        if (currentPrice.isEmpty()) {
-            return false;
-        }
-
-        // Buscar el precio de referencia (el más reciente ANTES de la semana)
-        Optional<PriceHistory> referencePrice = sortedHistory.stream()
-                .filter(ph -> ph.getDate().isBefore(sevenDaysAgo))
-                .findFirst();
-
-        // Si no hay precio de referencia, no podemos comparar
-        return referencePrice.filter(priceHistory -> sortedHistory.stream()
-                .filter(ph -> ph.getDate().isAfter(sevenDaysAgo))
-                .anyMatch(ph -> ph.getPrice() < priceHistory.getPrice())).isPresent();
-
     }
 
     // Métodos abstractos (implementación obligatoria)

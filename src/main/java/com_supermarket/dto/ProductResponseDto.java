@@ -11,7 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class ProductResponseDto {
-    private String id;
+    private Long id;
     private String name;
     private List<PriceHistoryResponseDto> priceHistory;
     private String imageUrl;
