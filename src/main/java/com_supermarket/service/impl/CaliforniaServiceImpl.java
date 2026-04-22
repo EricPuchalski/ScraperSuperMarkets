@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.logging.Level;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class CaliforniaServiceImpl extends BaseScraperService implements CaliforniaService {
     private static final String PAGE_NAME = "California";
-    private static final String BASE_URL = "https://www.californiasa.com.ar";
+    private static final String BASE_URL = "https://www.californiasa.com.ar/productos";
 
     public CaliforniaServiceImpl(CaliforniaRepository californiaRepository,
                                  ProductMapper productMapper) {
@@ -56,7 +57,7 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
 
     @Override
     protected void loadAllProducts(WebDriver driver, Set<String> foundProductUrls) {
-        String currentUrl = BASE_URL + "/?post_type=product&s=&product_cat=";
+        String currentUrl = BASE_URL + "?product_page=";
         int pageNumber = 1;
         boolean hasNextPage = true;
 
@@ -65,7 +66,7 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
                 logger.info("Procesando página " + pageNumber + ": " + currentUrl);
                 driver.get(currentUrl);
 
-                List<WebElement> productElements = driver.findElements(By.cssSelector(".type-product"));
+                List<WebElement> productElements = driver.findElements(By.cssSelector(".csc-product-card"));
                 logger.info("Encontrados " + productElements.size() + " productos en la página " + pageNumber);
 
                 for (WebElement productElement : productElements) {
@@ -78,7 +79,7 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
                 List<WebElement> nextPageElements = driver.findElements(By.cssSelector(".next"));
                 if (!nextPageElements.isEmpty()) {
                     pageNumber++;
-                    currentUrl = BASE_URL + "/page/" + pageNumber + "/?post_type=product&s=&product_cat=";
+                    currentUrl = BASE_URL + "?product_page=" + pageNumber;
                     logger.info("Avanzando a página " + pageNumber);
                 } else {
                     hasNextPage = false;
@@ -94,10 +95,14 @@ public class CaliforniaServiceImpl extends BaseScraperService implements Califor
     @Override
     protected String processProductElement(WebElement productElement) {
         try {
-            String title = productElement.findElement(By.cssSelector(".woocommerce-loop-product__title")).getText();
-            String productUrl = productElement.findElement(By.cssSelector(".woocommerce-LoopProduct-link")).getAttribute("href");
+            String title = productElement
+                    .findElement(By.cssSelector(".csc-product-title a"))
+                    .getText();            String productUrl = productElement.findElement(By.cssSelector(".csc-product-image-link")).getAttribute("href");
             String imageUrl = productElement.findElement(By.cssSelector(".attachment-woocommerce_thumbnail")).getAttribute("src");
-            String priceText = productElement.findElement(By.cssSelector(".price")).getText();
+            String priceText = productElement
+                    .findElement(By.cssSelector(".csc-product-price .woocommerce-Price-amount"))
+                    .getText();
+
 
             double price = parsePrice(priceText);
 
